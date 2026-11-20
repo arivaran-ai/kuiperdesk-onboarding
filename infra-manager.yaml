@@ -1,0 +1,124 @@
+# Google Cloud Infrastructure Manager deployment contract for the KuiperDesk
+# BYOC authorization-only v1 blueprint.
+#
+# Infrastructure Manager is driven by gcloud flags, not by a config file it
+# reads on its own. This document is therefore the machine-readable CONTRACT
+# that the KuiperDesk launcher, the Cloud Shell tutorial and
+# cloud-auth-artifacts-validate.py all agree on: the exact deployment resource
+# name, the exact input variables, the exact preview-before-apply requirement,
+# and the exact deployer permissions. Anything not named here is not part of
+# v1.
+schema_version: 1
+artifact_version: v1
+deployment_profile: authorization-only
+
+deployment:
+  # Regional. us-central1 is the default Infrastructure Manager location; the
+  # launcher may substitute any location the customer's org policy allows.
+  location: us-central1
+  deployment_id: kuiperdesk-authorization
+  resource_name_template: projects/{project_id}/locations/{location}/deployments/kuiperdesk-authorization
+  preview_name_template: projects/{project_id}/locations/{location}/previews/kuiperdesk-authorization
+  labels:
+    kuiperdesk-artifact-version: v1
+    kuiperdesk-deployment-profile: authorization-only
+
+terraform_blueprint:
+  # The blueprint source is this immutable directory. Publication pins it to an
+  # exact tag or an exact gs:// object; a branch name is refused because a
+  # launcher URL a customer already reviewed must never serve different bytes.
+  source_kind: git-or-local
+  git_source_ref_must_be_immutable: true
+  rejected_ref_markers:
+    - main
+    - master
+    - latest
+    - HEAD
+    - dev
+  input_values:
+    - project_id
+    - tenant_id
+    - installation_id
+    - issuer_uri
+    - return_url
+  output_values:
+    - wif_provider_resource_name
+    - project_id
+    - project_number
+    - return_to_arivaran
+    - delete_behavior
+    - enabled_services
+    - iam_roles_granted
+    - estimated_recurring_cost_usd_per_month
+    - network_impact
+
+deployer_service_account:
+  # The customer supplies this. KuiperDesk never holds it and never asks for a
+  # key for it.
+  required_roles:
+    - roles/iam.workloadIdentityPoolAdmin
+    - roles/resourcemanager.projectIamAdmin
+    - roles/serviceusage.serviceUsageAdmin
+    # Without this one the build cannot read its own blueprint bucket (#19777).
+    - roles/config.agent
+  forbidden_roles:
+    - roles/owner
+    - roles/editor
+    - roles/iam.serviceAccountKeyAdmin
+
+lifecycle:
+  preview_required_before_apply: true
+  preview_expected:
+    services_enabled: 3
+    resources_created: 3
+    resources_deleted: 0
+    resources_replaced: 0
+  apply_command: >-
+    gcloud infra-manager deployments apply
+    projects/{project_id}/locations/{location}/deployments/kuiperdesk-authorization
+    --local-source=.
+    --input-values=project_id={project_id},tenant_id={tenant_id},installation_id={installation_id},issuer_uri={issuer_uri},return_url={return_url}
+    --service-account={deployer_service_account}
+  preview_command: >-
+    gcloud infra-manager previews create
+    projects/{project_id}/locations/{location}/previews/kuiperdesk-authorization
+    --local-source=.
+    --input-values=project_id={project_id},tenant_id={tenant_id},installation_id={installation_id},issuer_uri={issuer_uri},return_url={return_url}
+    --service-account={deployer_service_account}
+  delete_command: >-
+    gcloud infra-manager deployments delete
+    projects/{project_id}/locations/{location}/deployments/kuiperdesk-authorization
+
+launcher:
+  env: KD_CLOUD_AUTH_GCP_DEPLOY_URL
+  launch_kind: cloud-shell-tutorial
+  allowed_hosts:
+    - shell.cloud.google.com
+    - console.cloud.google.com
+  # The repo and its ref are the pin: with no cloudshell_git_branch Cloud
+  # Shell clones the default branch, which moves. publication.json holds the
+  # accepted ref form; kd::cloudauth::IsImmutableGcpBlueprintLaunchUrl enforces
+  # it before a session row exists.
+  required_query_keys:
+    - cloudshell_git_repo
+    - cloudshell_git_branch
+    - cloudshell_tutorial
+  publication_contract: publication.json
+  # A Google OAuth consent screen is a DIFFERENT surface and must never be
+  # reachable from the BYOC launcher.
+  forbidden_hosts:
+    - accounts.google.com
+    - oauth2.googleapis.com
+  forbidden_query_keys:
+    - scope
+    - response_type
+    - redirect_uri
+    - client_id
+  tutorial_file: tutorial.md
+
+# This file is published inside the blueprint at an immutable tag, so it states
+# only scope limits that hold for the life of v1. Publication and canary state
+# change after publication; they live in publication.json, which is not one of
+# the published blueprint_contents.
+not_yet_satisfied:
+  - Assured Workloads and sovereign organization-policy projects are unsupported in v1 and are separately certified.

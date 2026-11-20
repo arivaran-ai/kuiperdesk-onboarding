@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "artifact_version": "v1",
+  "deployment_profile": "authorization-only",
+  "apis_enabled": [
+    {
+      "service": "cloudresourcemanager.googleapis.com",
+      "why": "Read back the exact project the customer selected.",
+      "disabled_on_destroy": false
+    },
+    {
+      "service": "iamcredentials.googleapis.com",
+      "why": "Required by Workload Identity Federation token exchange.",
+      "disabled_on_destroy": false
+    },
+    {
+      "service": "sts.googleapis.com",
+      "why": "The Security Token Service endpoint that performs the exchange.",
+      "disabled_on_destroy": false
+    }
+  ],
+  "resources_created": [
+    {
+      "type": "google_iam_workload_identity_pool",
+      "count": 1,
+      "billable": false
+    },
+    {
+      "type": "google_iam_workload_identity_pool_provider",
+      "count": 1,
+      "billable": false
+    },
+    {
+      "type": "google_project_iam_member",
+      "count": 1,
+      "billable": false
+    }
+  ],
+  "iam_roles_granted": [
+    {
+      "role": "roles/browser",
+      "member_kind": "principalSet",
+      "scope": "project",
+      "why": "roles/browser is read-only project metadata. It is the narrowest predefined role that lets KuiperDesk prove which project it reached. It grants no data access, no compute access and no IAM mutation."
+    }
+  ],
+  "service_accounts_created": 0,
+  "service_account_keys_created": 0,
+  "network_impact": {
+    "vpcs_created": 0,
+    "subnets_created": 0,
+    "firewall_rules_changed": 0,
+    "external_ips_created": 0,
+    "existing_network_modified": false,
+    "summary": "None. This blueprint touches no networking resource and opens no ingress."
+  },
+  "quota_findings": [
+    {
+      "quota": "Workload Identity Pools per project",
+      "default_limit": 100,
+      "consumed_by_this_deployment": 1,
+      "failure_mode": "Infrastructure Manager preview fails before apply if the project is at its limit."
+    },
+    {
+      "quota": "Workload Identity Pool providers per pool",
+      "default_limit": 20,
+      "consumed_by_this_deployment": 1,
+      "failure_mode": "Infrastructure Manager preview fails before apply if the pool is at its limit."
+    },
+    {
+      "quota": "Services enabled per project",
+      "default_limit": 0,
+      "consumed_by_this_deployment": 3,
+      "failure_mode": "serviceusage.googleapis.com returns a quota error at preview; no partial enablement is applied."
+    }
+  ],
+  "estimated_recurring_cost_usd_per_month": 0.0,
+  "estimated_one_time_cost_usd": 0.0,
+  "cost_basis": "Workload Identity Pools, providers and IAM bindings carry no Google Cloud charge. Enabling an API carries no charge by itself.",
+  "delete_behavior": {
+    "removes": [
+      "google_iam_workload_identity_pool",
+      "google_iam_workload_identity_pool_provider",
+      "google_project_iam_member"
+    ],
+    "retains": [
+      "cloudresourcemanager.googleapis.com",
+      "iamcredentials.googleapis.com",
+      "sts.googleapis.com"
+    ],
+    "why_retains": "Other workloads in the customer project may already depend on these APIs. Uninstalling KuiperDesk must never disable an API it did not exclusively own."
+  },
+  "unsupported_in_v1": [
+    "assured-workloads",
+    "sovereign-controls"
+  ]
+}
